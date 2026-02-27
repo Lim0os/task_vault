@@ -1,0 +1,5 @@
+bin/
+vendor/
+.config
+*.log
+config.local.yaml

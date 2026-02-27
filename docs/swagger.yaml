@@ -1,0 +1,520 @@
+basePath: /api/v1
+definitions:
+  internal_adapter_http_handler.CreateTaskRequest:
+    properties:
+      assignee_id:
+        type: integer
+      description:
+        type: string
+      team_id:
+        type: integer
+      title:
+        type: string
+    type: object
+  internal_adapter_http_handler.CreateTeamRequest:
+    properties:
+      name:
+        type: string
+    type: object
+  internal_adapter_http_handler.HistoryEntry:
+    properties:
+      changed_by:
+        type: integer
+      field_name:
+        type: string
+      id:
+        type: integer
+      new_value:
+        type: string
+      old_value:
+        type: string
+    type: object
+  internal_adapter_http_handler.InviteRequest:
+    properties:
+      email:
+        type: string
+    type: object
+  internal_adapter_http_handler.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    type: object
+  internal_adapter_http_handler.LoginResponse:
+    properties:
+      token:
+        type: string
+    type: object
+  internal_adapter_http_handler.RegisterRequest:
+    properties:
+      email:
+        type: string
+      name:
+        type: string
+      password:
+        type: string
+    type: object
+  internal_adapter_http_handler.TaskListResponse:
+    properties:
+      tasks:
+        items:
+          $ref: '#/definitions/internal_adapter_http_handler.TaskResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  internal_adapter_http_handler.TaskResponse:
+    properties:
+      assignee_id:
+        type: integer
+      created_by:
+        type: integer
+      description:
+        type: string
+      id:
+        type: integer
+      status:
+        type: string
+      team_id:
+        type: integer
+      title:
+        type: string
+    type: object
+  internal_adapter_http_handler.TeamResponse:
+    properties:
+      created_by:
+        type: integer
+      id:
+        type: integer
+      name:
+        type: string
+    type: object
+  internal_adapter_http_handler.UpdateTaskRequest:
+    properties:
+      assignee_id:
+        type: integer
+      description:
+        type: string
+      status:
+        $ref: '#/definitions/task_vault_internal_domain.Status'
+      title:
+        type: string
+    type: object
+  internal_adapter_http_handler.UserResponse:
+    properties:
+      email:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+    type: object
+  internal_adapter_http_handler.swagErrorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  internal_adapter_http_handler.swagHistoryListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/internal_adapter_http_handler.HistoryEntry'
+        type: array
+      error:
+        type: string
+    type: object
+  internal_adapter_http_handler.swagLoginResponse:
+    properties:
+      data:
+        $ref: '#/definitions/internal_adapter_http_handler.LoginResponse'
+      error:
+        type: string
+    type: object
+  internal_adapter_http_handler.swagStatusResponse:
+    properties:
+      data:
+        additionalProperties:
+          type: string
+        type: object
+      error:
+        type: string
+    type: object
+  internal_adapter_http_handler.swagTaskListResponse:
+    properties:
+      data:
+        $ref: '#/definitions/internal_adapter_http_handler.TaskListResponse'
+      error:
+        type: string
+    type: object
+  internal_adapter_http_handler.swagTaskResponse:
+    properties:
+      data:
+        $ref: '#/definitions/internal_adapter_http_handler.TaskResponse'
+      error:
+        type: string
+    type: object
+  internal_adapter_http_handler.swagTeamListResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/internal_adapter_http_handler.TeamResponse'
+        type: array
+      error:
+        type: string
+    type: object
+  internal_adapter_http_handler.swagTeamResponse:
+    properties:
+      data:
+        $ref: '#/definitions/internal_adapter_http_handler.TeamResponse'
+      error:
+        type: string
+    type: object
+  internal_adapter_http_handler.swagUserResponse:
+    properties:
+      data:
+        $ref: '#/definitions/internal_adapter_http_handler.UserResponse'
+      error:
+        type: string
+    type: object
+  task_vault_internal_domain.Status:
+    enum:
+    - todo
+    - in_progress
+    - done
+    type: string
+    x-enum-varnames:
+    - StatusTodo
+    - StatusInProgress
+    - StatusDone
+host: localhost:8080
+info:
+  contact: {}
+  description: REST API для управления задачами и командами
+  title: SquadSync API
+  version: "1.0"
+paths:
+  /login:
+    post:
+      consumes:
+      - application/json
+      description: Возвращает JWT-токен по email и паролю
+      parameters:
+      - description: Данные для входа
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/internal_adapter_http_handler.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagLoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+      summary: Авторизация
+      tags:
+      - auth
+  /register:
+    post:
+      consumes:
+      - application/json
+      description: Создает нового пользователя по email и паролю
+      parameters:
+      - description: Данные для регистрации
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/internal_adapter_http_handler.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagUserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+      summary: Регистрация пользователя
+      tags:
+      - auth
+  /tasks:
+    get:
+      description: Возвращает задачи с фильтрацией и пагинацией
+      parameters:
+      - description: ID команды
+        in: query
+        name: team_id
+        type: integer
+      - description: Статус (todo, in_progress, done)
+        in: query
+        name: status
+        type: string
+      - description: ID исполнителя
+        in: query
+        name: assignee_id
+        type: integer
+      - description: Лимит (по умолчанию 20)
+        in: query
+        name: limit
+        type: integer
+      - description: Смещение (по умолчанию 0)
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagTaskListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Список задач
+      tags:
+      - tasks
+    post:
+      consumes:
+      - application/json
+      description: Создает задачу в указанной команде
+      parameters:
+      - description: Данные задачи
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/internal_adapter_http_handler.CreateTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagTaskResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Создание задачи
+      tags:
+      - tasks
+  /tasks/{id}:
+    put:
+      consumes:
+      - application/json
+      description: Частичное обновление полей задачи
+      parameters:
+      - description: ID задачи
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Обновляемые поля
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/internal_adapter_http_handler.UpdateTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagTaskResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Обновление задачи
+      tags:
+      - tasks
+  /tasks/{id}/history:
+    get:
+      description: Возвращает лог изменений полей задачи
+      parameters:
+      - description: ID задачи
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagHistoryListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: История изменений задачи
+      tags:
+      - tasks
+  /teams:
+    get:
+      description: Возвращает команды текущего пользователя
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagTeamListResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Список команд
+      tags:
+      - teams
+    post:
+      consumes:
+      - application/json
+      description: Создает новую команду. Текущий пользователь становится владельцем.
+      parameters:
+      - description: Название команды
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/internal_adapter_http_handler.CreateTeamRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagTeamResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Создание команды
+      tags:
+      - teams
+  /teams/{id}/invite:
+    post:
+      consumes:
+      - application/json
+      description: Приглашает пользователя в команду по email. Требуется роль owner
+        или admin.
+      parameters:
+      - description: ID команды
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Email приглашаемого
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/internal_adapter_http_handler.InviteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagStatusResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Приглашение в команду
+      tags:
+      - teams
+securityDefinitions:
+  BearerAuth:
+    description: 'Bearer JWT-токен (формат: "Bearer <token>")'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
