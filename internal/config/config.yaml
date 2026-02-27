@@ -1,0 +1,17 @@
+server:
+  port: "8080"
+
+mysql:
+  dsn: "root:root@tcp(localhost:3306)/task_vault?parseTime=true"
+  max_open_conns: 25
+  max_idle_conns: 10
+  conn_max_lifetime: 5m
+
+redis:
+  addr: "localhost:6379"
+  password: ""
+  db: 0
+
+jwt:
+  secret: "dev-secret-change-me"
+  ttl: 24h
