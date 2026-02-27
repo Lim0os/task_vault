@@ -47,6 +47,28 @@ func (c *Cache) Delete(ctx context.Context, key string) error {
 	return c.client.Del(ctx, key).Err()
 }
 
+func (c *Cache) DeleteByPrefix(ctx context.Context, prefix string) error {
+	var cursor uint64
+	pattern := prefix + "*"
+
+	for {
+		keys, next, err := c.client.Scan(ctx, cursor, pattern, 100).Result()
+		if err != nil {
+			return err
+		}
+		if len(keys) > 0 {
+			if err := c.client.Del(ctx, keys...).Err(); err != nil {
+				return err
+			}
+		}
+		cursor = next
+		if cursor == 0 {
+			break
+		}
+	}
+	return nil
+}
+
 func (c *Cache) Close() error {
 	return c.client.Close()
 }

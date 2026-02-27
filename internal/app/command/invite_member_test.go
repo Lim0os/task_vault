@@ -2,7 +2,6 @@ package command
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"task_vault/internal/domain"
 	"task_vault/internal/ports/mocks"
@@ -22,7 +21,7 @@ func TestInviteMember_Success(t *testing.T) {
 	userQuery.On("GetByEmail", mock.Anything, "new@example.com").
 		Return(&domain.User{ID: "user-uuid-200"}, nil)
 	teamQuery.On("GetMember", mock.Anything, "team-uuid-1", "user-uuid-200").
-		Return(nil, sql.ErrNoRows)
+		Return(nil, domain.ErrNotTeamMember)
 	teamCmd.On("AddMember", mock.Anything, mock.AnythingOfType("*domain.TeamMember")).
 		Return(nil)
 

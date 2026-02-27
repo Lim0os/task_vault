@@ -14,17 +14,20 @@ import (
 type TeamHandler struct {
 	createTeam   *command.CreateTeamHandler
 	inviteMember *command.InviteMemberHandler
+	sendInvite   *command.SendInviteHandler
 	getTeams     *query.GetTeamsHandler
 }
 
 func NewTeamHandler(
 	createTeam *command.CreateTeamHandler,
 	inviteMember *command.InviteMemberHandler,
+	sendInvite *command.SendInviteHandler,
 	getTeams *query.GetTeamsHandler,
 ) *TeamHandler {
 	return &TeamHandler{
 		createTeam:   createTeam,
 		inviteMember: inviteMember,
+		sendInvite:   sendInvite,
 		getTeams:     getTeams,
 	}
 }
@@ -146,6 +149,12 @@ func (h *TeamHandler) Invite(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+
+	_ = h.sendInvite.Handle(r.Context(), command.SendInviteInput{
+		TeamID:    teamID,
+		SenderID:  userID,
+		UserEmail: req.Email,
+	})
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "приглашение отправлено"})
 }

@@ -3,11 +3,11 @@ definitions:
   internal_adapter_http_handler.CreateTaskRequest:
     properties:
       assignee_id:
-        type: integer
+        type: string
       description:
         type: string
       team_id:
-        type: integer
+        type: string
       title:
         type: string
     type: object
@@ -19,11 +19,11 @@ definitions:
   internal_adapter_http_handler.HistoryEntry:
     properties:
       changed_by:
-        type: integer
+        type: string
       field_name:
         type: string
       id:
-        type: integer
+        type: string
       new_value:
         type: string
       old_value:
@@ -67,33 +67,44 @@ definitions:
   internal_adapter_http_handler.TaskResponse:
     properties:
       assignee_id:
-        type: integer
+        type: string
       created_by:
-        type: integer
+        type: string
       description:
         type: string
       id:
-        type: integer
+        type: string
       status:
         type: string
       team_id:
-        type: integer
+        type: string
       title:
         type: string
     type: object
   internal_adapter_http_handler.TeamResponse:
     properties:
       created_by:
-        type: integer
+        type: string
       id:
-        type: integer
+        type: string
       name:
+        type: string
+    type: object
+  internal_adapter_http_handler.TeamStatResponse:
+    properties:
+      done_last_week:
+        type: integer
+      members_count:
+        type: integer
+      team_id:
+        type: string
+      team_name:
         type: string
     type: object
   internal_adapter_http_handler.UpdateTaskRequest:
     properties:
       assignee_id:
-        type: integer
+        type: string
       description:
         type: string
       status:
@@ -101,12 +112,25 @@ definitions:
       title:
         type: string
     type: object
+  internal_adapter_http_handler.UserRankResponse:
+    properties:
+      rank:
+        type: integer
+      tasks_created:
+        type: integer
+      team_id:
+        type: string
+      user_id:
+        type: string
+      user_name:
+        type: string
+    type: object
   internal_adapter_http_handler.UserResponse:
     properties:
       email:
         type: string
       id:
-        type: integer
+        type: string
       name:
         type: string
     type: object
@@ -140,6 +164,15 @@ definitions:
       error:
         type: string
     type: object
+  internal_adapter_http_handler.swagTaskListOnlyResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/internal_adapter_http_handler.TaskResponse'
+        type: array
+      error:
+        type: string
+    type: object
   internal_adapter_http_handler.swagTaskListResponse:
     properties:
       data:
@@ -170,6 +203,24 @@ definitions:
       error:
         type: string
     type: object
+  internal_adapter_http_handler.swagTeamStatsResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/internal_adapter_http_handler.TeamStatResponse'
+        type: array
+      error:
+        type: string
+    type: object
+  internal_adapter_http_handler.swagUserRankResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/internal_adapter_http_handler.UserRankResponse'
+        type: array
+      error:
+        type: string
+    type: object
   internal_adapter_http_handler.swagUserResponse:
     properties:
       data:
@@ -191,9 +242,77 @@ host: localhost:8080
 info:
   contact: {}
   description: REST API для управления задачами и командами
-  title: SquadSync API
+  title: Хранилище задач API
   version: "1.0"
 paths:
+  /analytics/orphaned-assignees:
+    get:
+      description: Задачи, где assignee не является членом команды задачи
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagTaskListOnlyResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Задачи с невалидным исполнителем
+      tags:
+      - analytics
+  /analytics/teams:
+    get:
+      description: 'Для каждой команды: название, количество участников, количество
+        задач done за 7 дней'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagTeamStatsResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Статистика команд
+      tags:
+      - analytics
+  /analytics/teams/{id}/top:
+    get:
+      description: Топ-3 пользователя по количеству созданных задач в команде за месяц
+      parameters:
+      - description: ID команды
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagUserRankResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_adapter_http_handler.swagErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Топ контрибьюторы
+      tags:
+      - analytics
   /login:
     post:
       consumes:
@@ -269,7 +388,7 @@ paths:
       - description: ID команды
         in: query
         name: team_id
-        type: integer
+        type: string
       - description: Статус (todo, in_progress, done)
         in: query
         name: status
@@ -277,7 +396,7 @@ paths:
       - description: ID исполнителя
         in: query
         name: assignee_id
-        type: integer
+        type: string
       - description: Лимит (по умолчанию 20)
         in: query
         name: limit
@@ -347,7 +466,7 @@ paths:
         in: path
         name: id
         required: true
-        type: integer
+        type: string
       - description: Обновляемые поля
         in: body
         name: input
@@ -390,7 +509,7 @@ paths:
         in: path
         name: id
         required: true
-        type: integer
+        type: string
       produces:
       - application/json
       responses:
@@ -472,7 +591,7 @@ paths:
         in: path
         name: id
         required: true
-        type: integer
+        type: string
       - description: Email приглашаемого
         in: body
         name: input

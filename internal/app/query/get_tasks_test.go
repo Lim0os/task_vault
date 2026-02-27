@@ -7,6 +7,7 @@ import (
 	"task_vault/internal/ports"
 	"task_vault/internal/ports/mocks"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -24,7 +25,7 @@ func TestGetTasks_FromDB(t *testing.T) {
 		Return([]domain.Task{{ID: "task-uuid-1", Title: "Task 1"}}, int64(1), nil)
 	cache.On("Set", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
-	handler := NewGetTasksHandler(taskQuery, cache)
+	handler := NewGetTasksHandler(taskQuery, cache, 5*time.Minute)
 	output, err := handler.Handle(context.Background(), filter)
 
 	assert.NoError(t, err)
@@ -48,7 +49,7 @@ func TestGetTasks_FromCache(t *testing.T) {
 			dest.Total = 1
 		})
 
-	handler := NewGetTasksHandler(taskQuery, cache)
+	handler := NewGetTasksHandler(taskQuery, cache, 5*time.Minute)
 	output, err := handler.Handle(context.Background(), filter)
 
 	assert.NoError(t, err)
@@ -67,7 +68,7 @@ func TestGetTasks_NoCacheWithFilters(t *testing.T) {
 	taskQuery.On("List", mock.Anything, filter).
 		Return([]domain.Task{{ID: "task-uuid-1"}}, int64(1), nil)
 
-	handler := NewGetTasksHandler(taskQuery, cache)
+	handler := NewGetTasksHandler(taskQuery, cache, 5*time.Minute)
 	output, err := handler.Handle(context.Background(), filter)
 
 	assert.NoError(t, err)

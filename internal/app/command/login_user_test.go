@@ -59,7 +59,7 @@ func TestLoginUser_UserNotFound(t *testing.T) {
 	jwtManager := auth.NewJWTManager("test-secret", time.Hour)
 
 	userQuery.On("GetByEmail", mock.Anything, "none@example.com").
-		Return(nil, assert.AnError)
+		Return(nil, domain.ErrUserNotFound)
 
 	handler := NewLoginUserHandler(userQuery, jwtManager)
 	output, err := handler.Handle(context.Background(), LoginUserInput{

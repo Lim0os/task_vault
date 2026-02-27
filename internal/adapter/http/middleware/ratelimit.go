@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -13,13 +14,15 @@ type RateLimiter struct {
 	client *redis.Client
 	limit  int64
 	window time.Duration
+	logger *slog.Logger
 }
 
-func NewRateLimiter(client *redis.Client, limit int64, window time.Duration) *RateLimiter {
+func NewRateLimiter(client *redis.Client, limit int64, window time.Duration, logger *slog.Logger) *RateLimiter {
 	return &RateLimiter{
 		client: client,
 		limit:  limit,
 		window: window,
+		logger: logger,
 	}
 }
 
@@ -47,7 +50,11 @@ func (rl *RateLimiter) allow(ctx context.Context, userID string) bool {
 
 	count, err := rl.client.Incr(ctx, key).Result()
 	if err != nil {
-		return true // fail-open: при ошибке Redis пропускаем
+		rl.logger.Error("rate limiter: ошибка Redis, запрос отклонён",
+			"user_id", userID,
+			"error", err,
+		)
+		return false
 	}
 
 	if count == 1 {

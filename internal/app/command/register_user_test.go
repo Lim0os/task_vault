@@ -2,7 +2,6 @@ package command
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"task_vault/internal/domain"
 	"task_vault/internal/ports/mocks"
@@ -17,7 +16,7 @@ func TestRegisterUser_Success(t *testing.T) {
 	userQuery := new(mocks.UserQueryRepo)
 
 	userQuery.On("GetByEmail", mock.Anything, "test@example.com").
-		Return(nil, sql.ErrNoRows)
+		Return(nil, domain.ErrUserNotFound)
 	userCmd.On("Create", mock.Anything, mock.AnythingOfType("*domain.User")).
 		Return(nil).
 		Run(func(args mock.Arguments) {

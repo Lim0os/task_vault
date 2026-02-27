@@ -19,6 +19,7 @@ var (
 	ErrNoPermission  = errors.New("недостаточно прав")
 	ErrAlreadyMember = errors.New("пользователь уже в команде")
 	ErrNotTeamMember = errors.New("вы не являетесь членом команды")
+	ErrTeamNotFound  = errors.New("команда не найдена")
 )
 
 // Ошибки задач

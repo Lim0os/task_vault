@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"task_vault/internal/domain"
 	"task_vault/internal/ports"
@@ -25,9 +26,12 @@ func NewRegisterUserHandler(cmd ports.UserCommandRepo, query ports.UserQueryRepo
 }
 
 func (h *RegisterUserHandler) Handle(ctx context.Context, input RegisterUserInput) (*domain.User, error) {
-	existing, _ := h.userQuery.GetByEmail(ctx, input.Email)
-	if existing != nil {
+	_, err := h.userQuery.GetByEmail(ctx, input.Email)
+	if err == nil {
 		return nil, domain.ErrEmailTaken
+	}
+	if !errors.Is(err, domain.ErrUserNotFound) {
+		return nil, fmt.Errorf("проверка email [email=%s]: %w", input.Email, err)
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)

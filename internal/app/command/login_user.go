@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"task_vault/internal/app/auth"
 	"task_vault/internal/domain"
@@ -31,7 +32,10 @@ func NewLoginUserHandler(query ports.UserQueryRepo, jwt *auth.JWTManager) *Login
 func (h *LoginUserHandler) Handle(ctx context.Context, input LoginUserInput) (*LoginUserOutput, error) {
 	user, err := h.userQuery.GetByEmail(ctx, input.Email)
 	if err != nil {
-		return nil, domain.ErrInvalidCredentials
+		if errors.Is(err, domain.ErrUserNotFound) {
+			return nil, domain.ErrInvalidCredentials
+		}
+		return nil, fmt.Errorf("авторизация [email=%s]: %w", input.Email, err)
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {

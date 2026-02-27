@@ -15,6 +15,114 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/analytics/orphaned-assignees": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Задачи, где assignee не является членом команды задачи",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analytics"
+                ],
+                "summary": "Задачи с невалидным исполнителем",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_adapter_http_handler.swagTaskListOnlyResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_adapter_http_handler.swagErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/analytics/teams": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Для каждой команды: название, количество участников, количество задач done за 7 дней",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analytics"
+                ],
+                "summary": "Статистика команд",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_adapter_http_handler.swagTeamStatsResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_adapter_http_handler.swagErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/analytics/teams/{id}/top": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Топ-3 пользователя по количеству созданных задач в команде за месяц",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analytics"
+                ],
+                "summary": "Топ контрибьюторы",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "ID команды",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_adapter_http_handler.swagUserRankResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_adapter_http_handler.swagErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_adapter_http_handler.swagErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/login": {
             "post": {
                 "description": "Возвращает JWT-токен по email и паролю",
@@ -136,7 +244,7 @@ const docTemplate = `{
                 "summary": "Список задач",
                 "parameters": [
                     {
-                        "type": "integer",
+                        "type": "string",
                         "description": "ID команды",
                         "name": "team_id",
                         "in": "query"
@@ -148,7 +256,7 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "integer",
+                        "type": "string",
                         "description": "ID исполнителя",
                         "name": "assignee_id",
                         "in": "query"
@@ -257,7 +365,7 @@ const docTemplate = `{
                 "summary": "Обновление задачи",
                 "parameters": [
                     {
-                        "type": "integer",
+                        "type": "string",
                         "description": "ID задачи",
                         "name": "id",
                         "in": "path",
@@ -324,7 +432,7 @@ const docTemplate = `{
                 "summary": "История изменений задачи",
                 "parameters": [
                     {
-                        "type": "integer",
+                        "type": "string",
                         "description": "ID задачи",
                         "name": "id",
                         "in": "path",
@@ -453,7 +561,7 @@ const docTemplate = `{
                 "summary": "Приглашение в команду",
                 "parameters": [
                     {
-                        "type": "integer",
+                        "type": "string",
                         "description": "ID команды",
                         "name": "id",
                         "in": "path",
@@ -515,13 +623,13 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "assignee_id": {
-                    "type": "integer"
+                    "type": "string"
                 },
                 "description": {
                     "type": "string"
                 },
                 "team_id": {
-                    "type": "integer"
+                    "type": "string"
                 },
                 "title": {
                     "type": "string"
@@ -540,13 +648,13 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "changed_by": {
-                    "type": "integer"
+                    "type": "string"
                 },
                 "field_name": {
                     "type": "string"
                 },
                 "id": {
-                    "type": "integer"
+                    "type": "string"
                 },
                 "new_value": {
                     "type": "string"
@@ -615,22 +723,22 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "assignee_id": {
-                    "type": "integer"
+                    "type": "string"
                 },
                 "created_by": {
-                    "type": "integer"
+                    "type": "string"
                 },
                 "description": {
                     "type": "string"
                 },
                 "id": {
-                    "type": "integer"
+                    "type": "string"
                 },
                 "status": {
                     "type": "string"
                 },
                 "team_id": {
-                    "type": "integer"
+                    "type": "string"
                 },
                 "title": {
                     "type": "string"
@@ -641,12 +749,29 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "created_by": {
-                    "type": "integer"
+                    "type": "string"
                 },
                 "id": {
-                    "type": "integer"
+                    "type": "string"
                 },
                 "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_adapter_http_handler.TeamStatResponse": {
+            "type": "object",
+            "properties": {
+                "done_last_week": {
+                    "type": "integer"
+                },
+                "members_count": {
+                    "type": "integer"
+                },
+                "team_id": {
+                    "type": "string"
+                },
+                "team_name": {
                     "type": "string"
                 }
             }
@@ -655,7 +780,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "assignee_id": {
-                    "type": "integer"
+                    "type": "string"
                 },
                 "description": {
                     "type": "string"
@@ -668,6 +793,26 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_adapter_http_handler.UserRankResponse": {
+            "type": "object",
+            "properties": {
+                "rank": {
+                    "type": "integer"
+                },
+                "tasks_created": {
+                    "type": "integer"
+                },
+                "team_id": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                },
+                "user_name": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_adapter_http_handler.UserResponse": {
             "type": "object",
             "properties": {
@@ -675,7 +820,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "id": {
-                    "type": "integer"
+                    "type": "string"
                 },
                 "name": {
                     "type": "string"
@@ -722,6 +867,20 @@ const docTemplate = `{
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
+                    }
+                },
+                "error": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_adapter_http_handler.swagTaskListOnlyResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_adapter_http_handler.TaskResponse"
                     }
                 },
                 "error": {
@@ -776,6 +935,34 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_adapter_http_handler.swagTeamStatsResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_adapter_http_handler.TeamStatResponse"
+                    }
+                },
+                "error": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_adapter_http_handler.swagUserRankResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_adapter_http_handler.UserRankResponse"
+                    }
+                },
+                "error": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_adapter_http_handler.swagUserResponse": {
             "type": "object",
             "properties": {
@@ -817,7 +1004,7 @@ var SwaggerInfo = &swag.Spec{
 	Host:             "localhost:8080",
 	BasePath:         "/api/v1",
 	Schemes:          []string{},
-	Title:            "SquadSync API",
+	Title:            "Хранилище задач API",
 	Description:      "REST API для управления задачами и командами",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,

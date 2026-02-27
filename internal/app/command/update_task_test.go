@@ -29,9 +29,10 @@ func TestUpdateTask_Success(t *testing.T) {
 	taskQuery.On("GetByID", mock.Anything, "task-uuid-1").Return(existingTask, nil)
 	taskCmd.On("Update", mock.Anything, mock.AnythingOfType("*domain.Task")).Return(nil)
 	historyCmd.On("CreateHistoryEntry", mock.Anything, mock.AnythingOfType("*domain.TaskHistory")).Return(nil)
-	cache.On("Delete", mock.Anything, "tasks:team:team-uuid-10").Return(nil)
+	cache.On("DeleteByPrefix", mock.Anything, "tasks:team:team-uuid-10").Return(nil)
 
-	handler := NewUpdateTaskHandler(taskCmd, taskQuery, teamQuery, historyCmd, cache)
+	tx := new(mocks.Transactor)
+	handler := NewUpdateTaskHandler(taskCmd, taskQuery, teamQuery, historyCmd, cache, tx)
 
 	newTitle := "New Title"
 	newStatus := domain.StatusDone
@@ -68,9 +69,10 @@ func TestUpdateTask_ByAssignee(t *testing.T) {
 	taskQuery.On("GetByID", mock.Anything, "task-uuid-1").Return(existingTask, nil)
 	taskCmd.On("Update", mock.Anything, mock.AnythingOfType("*domain.Task")).Return(nil)
 	historyCmd.On("CreateHistoryEntry", mock.Anything, mock.AnythingOfType("*domain.TaskHistory")).Return(nil)
-	cache.On("Delete", mock.Anything, "tasks:team:team-uuid-10").Return(nil)
+	cache.On("DeleteByPrefix", mock.Anything, "tasks:team:team-uuid-10").Return(nil)
 
-	handler := NewUpdateTaskHandler(taskCmd, taskQuery, teamQuery, historyCmd, cache)
+	tx := new(mocks.Transactor)
+	handler := NewUpdateTaskHandler(taskCmd, taskQuery, teamQuery, historyCmd, cache, tx)
 
 	newStatus := domain.StatusInProgress
 	task, err := handler.Handle(context.Background(), UpdateTaskInput{
@@ -102,9 +104,10 @@ func TestUpdateTask_ByAdmin(t *testing.T) {
 		Return(&domain.TeamMember{Role: domain.RoleAdmin}, nil)
 	taskCmd.On("Update", mock.Anything, mock.AnythingOfType("*domain.Task")).Return(nil)
 	historyCmd.On("CreateHistoryEntry", mock.Anything, mock.AnythingOfType("*domain.TaskHistory")).Return(nil)
-	cache.On("Delete", mock.Anything, "tasks:team:team-uuid-10").Return(nil)
+	cache.On("DeleteByPrefix", mock.Anything, "tasks:team:team-uuid-10").Return(nil)
 
-	handler := NewUpdateTaskHandler(taskCmd, taskQuery, teamQuery, historyCmd, cache)
+	tx := new(mocks.Transactor)
+	handler := NewUpdateTaskHandler(taskCmd, taskQuery, teamQuery, historyCmd, cache, tx)
 
 	newDesc := "Updated by admin"
 	task, err := handler.Handle(context.Background(), UpdateTaskInput{
@@ -138,9 +141,10 @@ func TestUpdateTask_ChangeAssignee(t *testing.T) {
 	historyCmd.On("CreateHistoryEntry", mock.Anything, mock.MatchedBy(func(h *domain.TaskHistory) bool {
 		return h.FieldName == "assignee_id" && h.OldValue == oldAssignee
 	})).Return(nil)
-	cache.On("Delete", mock.Anything, "tasks:team:team-uuid-10").Return(nil)
+	cache.On("DeleteByPrefix", mock.Anything, "tasks:team:team-uuid-10").Return(nil)
 
-	handler := NewUpdateTaskHandler(taskCmd, taskQuery, teamQuery, historyCmd, cache)
+	tx := new(mocks.Transactor)
+	handler := NewUpdateTaskHandler(taskCmd, taskQuery, teamQuery, historyCmd, cache, tx)
 
 	newAssignee := "user-uuid-60"
 	task, err := handler.Handle(context.Background(), UpdateTaskInput{
@@ -160,9 +164,10 @@ func TestUpdateTask_NotFound(t *testing.T) {
 	historyCmd := new(mocks.HistoryCommandRepo)
 	cache := new(mocks.Cache)
 
-	taskQuery.On("GetByID", mock.Anything, "task-uuid-999").Return(nil, assert.AnError)
+	taskQuery.On("GetByID", mock.Anything, "task-uuid-999").Return(nil, domain.ErrTaskNotFound)
 
-	handler := NewUpdateTaskHandler(taskCmd, taskQuery, teamQuery, historyCmd, cache)
+	tx := new(mocks.Transactor)
+	handler := NewUpdateTaskHandler(taskCmd, taskQuery, teamQuery, historyCmd, cache, tx)
 	task, err := handler.Handle(context.Background(), UpdateTaskInput{
 		TaskID:    "task-uuid-999",
 		UpdatedBy: "user-uuid-100",
@@ -189,7 +194,8 @@ func TestUpdateTask_NoPermission(t *testing.T) {
 	teamQuery.On("GetMember", mock.Anything, "team-uuid-10", "user-uuid-999").
 		Return(&domain.TeamMember{Role: domain.RoleMember}, nil)
 
-	handler := NewUpdateTaskHandler(taskCmd, taskQuery, teamQuery, historyCmd, cache)
+	tx := new(mocks.Transactor)
+	handler := NewUpdateTaskHandler(taskCmd, taskQuery, teamQuery, historyCmd, cache, tx)
 
 	newTitle := "Hack"
 	task, err := handler.Handle(context.Background(), UpdateTaskInput{

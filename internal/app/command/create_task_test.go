@@ -2,7 +2,6 @@ package command
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"task_vault/internal/domain"
 	"task_vault/internal/ports/mocks"
@@ -25,7 +24,7 @@ func TestCreateTask_Success(t *testing.T) {
 			task := args.Get(1).(*domain.Task)
 			task.ID = "task-uuid-42"
 		})
-	cache.On("Delete", mock.Anything, "tasks:team:team-uuid-1").Return(nil)
+	cache.On("DeleteByPrefix", mock.Anything, "tasks:team:team-uuid-1").Return(nil)
 
 	handler := NewCreateTaskHandler(taskCmd, teamQuery, cache)
 	task, err := handler.Handle(context.Background(), CreateTaskInput{
@@ -37,7 +36,7 @@ func TestCreateTask_Success(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "task-uuid-42", task.ID)
 	assert.Equal(t, domain.StatusTodo, task.Status)
-	cache.AssertCalled(t, "Delete", mock.Anything, "tasks:team:team-uuid-1")
+	cache.AssertCalled(t, "DeleteByPrefix", mock.Anything, "tasks:team:team-uuid-1")
 }
 
 func TestCreateTask_WithAssignee(t *testing.T) {
@@ -54,7 +53,7 @@ func TestCreateTask_WithAssignee(t *testing.T) {
 			task := args.Get(1).(*domain.Task)
 			task.ID = "task-uuid-43"
 		})
-	cache.On("Delete", mock.Anything, "tasks:team:team-uuid-1").Return(nil)
+	cache.On("DeleteByPrefix", mock.Anything, "tasks:team:team-uuid-1").Return(nil)
 
 	handler := NewCreateTaskHandler(taskCmd, teamQuery, cache)
 	task, err := handler.Handle(context.Background(), CreateTaskInput{
@@ -76,7 +75,7 @@ func TestCreateTask_NotTeamMember(t *testing.T) {
 	cache := new(mocks.Cache)
 
 	teamQuery.On("GetMember", mock.Anything, "team-uuid-1", "user-uuid-100").
-		Return(nil, sql.ErrNoRows)
+		Return(nil, domain.ErrNotTeamMember)
 
 	handler := NewCreateTaskHandler(taskCmd, teamQuery, cache)
 	task, err := handler.Handle(context.Background(), CreateTaskInput{

@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"task_vault/internal/domain"
 	"task_vault/internal/ports"
@@ -34,7 +35,10 @@ func NewInviteMemberHandler(
 func (h *InviteMemberHandler) Handle(ctx context.Context, input InviteMemberInput) error {
 	inviter, err := h.teamQuery.GetMember(ctx, input.TeamID, input.InvitedByID)
 	if err != nil {
-		return domain.ErrNoPermission
+		if errors.Is(err, domain.ErrNotTeamMember) {
+			return domain.ErrNoPermission
+		}
+		return fmt.Errorf("проверка прав приглашающего [team_id=%s, user_id=%s]: %w", input.TeamID, input.InvitedByID, err)
 	}
 	if inviter.Role != domain.RoleOwner && inviter.Role != domain.RoleAdmin {
 		return domain.ErrNoPermission
@@ -42,12 +46,18 @@ func (h *InviteMemberHandler) Handle(ctx context.Context, input InviteMemberInpu
 
 	invitedUser, err := h.userQuery.GetByEmail(ctx, input.UserEmail)
 	if err != nil {
-		return domain.ErrUserNotFound
+		if errors.Is(err, domain.ErrUserNotFound) {
+			return domain.ErrUserNotFound
+		}
+		return fmt.Errorf("поиск приглашаемого [email=%s]: %w", input.UserEmail, err)
 	}
 
-	existing, _ := h.teamQuery.GetMember(ctx, input.TeamID, invitedUser.ID)
-	if existing != nil {
+	_, err = h.teamQuery.GetMember(ctx, input.TeamID, invitedUser.ID)
+	if err == nil {
 		return domain.ErrAlreadyMember
+	}
+	if !errors.Is(err, domain.ErrNotTeamMember) {
+		return fmt.Errorf("проверка членства [team_id=%s, user_id=%s]: %w", input.TeamID, invitedUser.ID, err)
 	}
 
 	member := &domain.TeamMember{

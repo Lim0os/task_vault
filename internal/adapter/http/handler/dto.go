@@ -114,6 +114,36 @@ type swagHistoryListResponse struct {
 	Error string         `json:"error,omitempty"`
 }
 
+type TeamStatResponse struct {
+	TeamID       string `json:"team_id"`
+	TeamName     string `json:"team_name"`
+	MembersCount int    `json:"members_count"`
+	DoneLastWeek int    `json:"done_last_week"`
+}
+
+type UserRankResponse struct {
+	UserID       string `json:"user_id"`
+	UserName     string `json:"user_name"`
+	TeamID       string `json:"team_id"`
+	TasksCreated int    `json:"tasks_created"`
+	Rank         int    `json:"rank"`
+}
+
+type swagTeamStatsResponse struct {
+	Data  []TeamStatResponse `json:"data"`
+	Error string             `json:"error,omitempty"`
+}
+
+type swagUserRankResponse struct {
+	Data  []UserRankResponse `json:"data"`
+	Error string             `json:"error,omitempty"`
+}
+
+type swagTaskListOnlyResponse struct {
+	Data  []TaskResponse `json:"data"`
+	Error string         `json:"error,omitempty"`
+}
+
 type swagErrorResponse struct {
 	Error string `json:"error"`
 }

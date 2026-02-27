@@ -11,6 +11,7 @@ import (
 
 	_ "task_vault/docs"
 	adapter "task_vault/internal/adapter"
+	"task_vault/internal/adapter/email"
 	adapthttp "task_vault/internal/adapter/http"
 	"task_vault/internal/adapter/http/handler"
 	"task_vault/internal/adapter/logging"
@@ -37,10 +38,8 @@ import (
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
-	// Конфигурация
 	cfg := config.Load()
 
-	// MySQL
 	var db *sql.DB
 	if err := adapter.Retry(logger, "MySQL", 10, func() error {
 		var err error
@@ -52,7 +51,6 @@ func main() {
 	}
 	defer db.Close()
 
-	// Миграции
 	driver, err := migratemysql.WithInstance(db, &migratemysql.Config{})
 	if err != nil {
 		logger.Error("ошибка инициализации миграций", "error", err)
@@ -69,7 +67,6 @@ func main() {
 	}
 	logger.Info("миграции применены")
 
-	// Redis
 	var cache *adapterredis.Cache
 	if err := adapter.Retry(logger, "Redis", 10, func() error {
 		var err error
@@ -81,40 +78,48 @@ func main() {
 	}
 	defer cache.Close()
 
-	// Репозитории
+	cacheLog := logging.NewCacheLogger(cache, logger)
+
 	userRepo := adaptermysql.NewUserRepo(db)
 	teamRepo := adaptermysql.NewTeamRepo(db)
 	taskRepo := adaptermysql.NewTaskRepo(db)
+	transactor := adaptermysql.NewTransactor(db)
 
-	// Logging-декораторы
 	userLog := logging.NewUserRepoLogger(userRepo, userRepo, logger)
 	teamLog := logging.NewTeamRepoLogger(teamRepo, teamRepo, logger)
 	taskLog := logging.NewTaskRepoLogger(taskRepo, taskRepo, taskRepo, taskRepo, logger)
 
-	// JWT
 	jwtManager := auth.NewJWTManager(cfg.JWT.Secret, cfg.JWT.TTL)
 
-	// Command handlers
 	registerUser := command.NewRegisterUserHandler(userLog, userLog)
 	loginUser := command.NewLoginUserHandler(userLog, jwtManager)
-	createTeam := command.NewCreateTeamHandler(teamLog)
+	createTeam := command.NewCreateTeamHandler(teamLog, transactor)
 	inviteMember := command.NewInviteMemberHandler(teamLog, teamLog, userLog)
-	createTask := command.NewCreateTaskHandler(taskLog, teamLog, cache)
-	updateTask := command.NewUpdateTaskHandler(taskLog, taskLog, teamLog, taskLog, cache)
+	createTask := command.NewCreateTaskHandler(taskLog, teamLog, cacheLog)
+	updateTask := command.NewUpdateTaskHandler(taskLog, taskLog, teamLog, taskLog, cacheLog, transactor)
 
-	// Query handlers
-	getTasks := query.NewGetTasksHandler(taskLog, cache)
+	notifier := email.NewNotifier(logger, cfg.CircuitBreaker)
+	sendInvite := command.NewSendInviteHandler(teamLog, notifier)
+
+	getTasks := query.NewGetTasksHandler(taskLog, cacheLog, cfg.Cache.TasksTTL)
 	getTaskHistory := query.NewGetTaskHistoryHandler(taskLog)
 	getTeams := query.NewGetTeamsHandler(teamLog)
+	teamAnalytics := query.NewTeamAnalyticsHandler(taskLog)
 
-	// HTTP handlers
 	healthHandler := handler.NewHealthHandler(db, cache.Client())
 	authHandler := handler.NewAuthHandler(registerUser, loginUser)
-	teamHandler := handler.NewTeamHandler(createTeam, inviteMember, getTeams)
+	teamHandler := handler.NewTeamHandler(createTeam, inviteMember, sendInvite, getTeams)
 	taskHandler := handler.NewTaskHandler(createTask, updateTask, getTasks, getTaskHistory)
+	analyticsHandler := handler.NewAnalyticsHandler(teamAnalytics)
 
-	// Router + Server
-	router := adapthttp.NewRouter(logger, jwtManager, cache.Client(), healthHandler, authHandler, teamHandler, taskHandler)
+	routerCfg := adapthttp.RouterConfig{
+		RateLimitRequests: cfg.RateLimit.RequestsPerWindow,
+		RateLimitWindow:   cfg.RateLimit.Window,
+	}
+	router := adapthttp.NewRouter(
+		logger, jwtManager, cache.Client(), routerCfg,
+		healthHandler, authHandler, teamHandler, taskHandler, analyticsHandler,
+	)
 	server := adapthttp.NewServer(":"+cfg.Server.Port, router, logger)
 
 	if err := server.Start(); err != nil {

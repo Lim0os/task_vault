@@ -13,11 +13,12 @@ type CreateTeamInput struct {
 }
 
 type CreateTeamHandler struct {
-	teamCmd ports.TeamCommandRepo
+	teamCmd    ports.TeamCommandRepo
+	transactor ports.Transactor
 }
 
-func NewCreateTeamHandler(cmd ports.TeamCommandRepo) *CreateTeamHandler {
-	return &CreateTeamHandler{teamCmd: cmd}
+func NewCreateTeamHandler(cmd ports.TeamCommandRepo, transactor ports.Transactor) *CreateTeamHandler {
+	return &CreateTeamHandler{teamCmd: cmd, transactor: transactor}
 }
 
 func (h *CreateTeamHandler) Handle(ctx context.Context, input CreateTeamInput) (*domain.Team, error) {
@@ -26,17 +27,24 @@ func (h *CreateTeamHandler) Handle(ctx context.Context, input CreateTeamInput) (
 		CreatedBy: input.CreatedBy,
 	}
 
-	if err := h.teamCmd.Create(ctx, team); err != nil {
-		return nil, fmt.Errorf("создание команды [name=%s, created_by=%s]: %w", input.Name, input.CreatedBy, err)
-	}
+	err := h.transactor.WithinTransaction(ctx, func(txCtx context.Context) error {
+		if err := h.teamCmd.Create(txCtx, team); err != nil {
+			return fmt.Errorf("создание команды [name=%s, created_by=%s]: %w", input.Name, input.CreatedBy, err)
+		}
 
-	member := &domain.TeamMember{
-		UserID: input.CreatedBy,
-		TeamID: team.ID,
-		Role:   domain.RoleOwner,
-	}
-	if err := h.teamCmd.AddMember(ctx, member); err != nil {
-		return nil, fmt.Errorf("создание команды, добавление владельца [team_id=%s]: %w", team.ID, err)
+		member := &domain.TeamMember{
+			UserID: input.CreatedBy,
+			TeamID: team.ID,
+			Role:   domain.RoleOwner,
+		}
+		if err := h.teamCmd.AddMember(txCtx, member); err != nil {
+			return fmt.Errorf("добавление владельца [team_id=%s]: %w", team.ID, err)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	return team, nil

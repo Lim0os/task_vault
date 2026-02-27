@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"task_vault/internal/domain"
 	"task_vault/internal/ports"
@@ -22,6 +23,7 @@ type UpdateTaskHandler struct {
 	teamQuery  ports.TeamQueryRepo
 	historyCmd ports.HistoryCommandRepo
 	cache      ports.Cache
+	transactor ports.Transactor
 }
 
 func NewUpdateTaskHandler(
@@ -30,6 +32,7 @@ func NewUpdateTaskHandler(
 	teamQuery ports.TeamQueryRepo,
 	historyCmd ports.HistoryCommandRepo,
 	cache ports.Cache,
+	transactor ports.Transactor,
 ) *UpdateTaskHandler {
 	return &UpdateTaskHandler{
 		taskCmd:    taskCmd,
@@ -37,53 +40,64 @@ func NewUpdateTaskHandler(
 		teamQuery:  teamQuery,
 		historyCmd: historyCmd,
 		cache:      cache,
+		transactor: transactor,
 	}
 }
 
 func (h *UpdateTaskHandler) Handle(ctx context.Context, input UpdateTaskInput) (*domain.Task, error) {
 	task, err := h.taskQuery.GetByID(ctx, input.TaskID)
 	if err != nil {
-		return nil, domain.ErrTaskNotFound
+		if errors.Is(err, domain.ErrTaskNotFound) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("получение задачи [task_id=%s]: %w", input.TaskID, err)
 	}
 
 	if err := h.checkPermission(ctx, task, input.UpdatedBy); err != nil {
 		return nil, err
 	}
 
-	if input.Title != nil && *input.Title != task.Title {
-		if err := h.recordChange(ctx, task.ID, input.UpdatedBy, "title", task.Title, *input.Title); err != nil {
-			return nil, err
+	err = h.transactor.WithinTransaction(ctx, func(txCtx context.Context) error {
+		if input.Title != nil && *input.Title != task.Title {
+			if err := h.recordChange(txCtx, task.ID, input.UpdatedBy, "title", task.Title, *input.Title); err != nil {
+				return err
+			}
+			task.Title = *input.Title
 		}
-		task.Title = *input.Title
-	}
-	if input.Description != nil && *input.Description != task.Description {
-		if err := h.recordChange(ctx, task.ID, input.UpdatedBy, "description", task.Description, *input.Description); err != nil {
-			return nil, err
+		if input.Description != nil && *input.Description != task.Description {
+			if err := h.recordChange(txCtx, task.ID, input.UpdatedBy, "description", task.Description, *input.Description); err != nil {
+				return err
+			}
+			task.Description = *input.Description
 		}
-		task.Description = *input.Description
-	}
-	if input.Status != nil && *input.Status != task.Status {
-		if err := h.recordChange(ctx, task.ID, input.UpdatedBy, "status", string(task.Status), string(*input.Status)); err != nil {
-			return nil, err
+		if input.Status != nil && *input.Status != task.Status {
+			if err := h.recordChange(txCtx, task.ID, input.UpdatedBy, "status", string(task.Status), string(*input.Status)); err != nil {
+				return err
+			}
+			task.Status = *input.Status
 		}
-		task.Status = *input.Status
-	}
-	if input.AssigneeID != nil {
-		oldVal := "nil"
-		if task.AssigneeID != nil {
-			oldVal = *task.AssigneeID
+		if input.AssigneeID != nil {
+			oldVal := "nil"
+			if task.AssigneeID != nil {
+				oldVal = *task.AssigneeID
+			}
+			if err := h.recordChange(txCtx, task.ID, input.UpdatedBy, "assignee_id", oldVal, *input.AssigneeID); err != nil {
+				return err
+			}
+			task.AssigneeID = input.AssigneeID
 		}
-		if err := h.recordChange(ctx, task.ID, input.UpdatedBy, "assignee_id", oldVal, *input.AssigneeID); err != nil {
-			return nil, err
+
+		if err := h.taskCmd.Update(txCtx, task); err != nil {
+			return fmt.Errorf("обновление задачи [task_id=%s, updated_by=%s]: %w", input.TaskID, input.UpdatedBy, err)
 		}
-		task.AssigneeID = input.AssigneeID
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	if err := h.taskCmd.Update(ctx, task); err != nil {
-		return nil, fmt.Errorf("обновление задачи [task_id=%s, updated_by=%s]: %w", input.TaskID, input.UpdatedBy, err)
-	}
-
-	_ = h.cache.Delete(ctx, tasksCacheKey(task.TeamID))
+	_ = h.cache.DeleteByPrefix(ctx, tasksCacheKey(task.TeamID))
 
 	return task, nil
 }
@@ -98,7 +112,10 @@ func (h *UpdateTaskHandler) checkPermission(ctx context.Context, task *domain.Ta
 
 	member, err := h.teamQuery.GetMember(ctx, task.TeamID, userID)
 	if err != nil {
-		return domain.ErrNoPermission
+		if errors.Is(err, domain.ErrNotTeamMember) {
+			return domain.ErrNoPermission
+		}
+		return fmt.Errorf("проверка прав [team_id=%s, user_id=%s]: %w", task.TeamID, userID, err)
 	}
 	if member.Role == domain.RoleOwner || member.Role == domain.RoleAdmin {
 		return nil

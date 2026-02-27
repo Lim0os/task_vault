@@ -3,6 +3,7 @@ package mysql
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"task_vault/internal/domain"
@@ -19,9 +20,13 @@ func NewTaskRepo(db *sql.DB) *TaskRepo {
 	return &TaskRepo{db: db}
 }
 
+func (r *TaskRepo) conn(ctx context.Context) DBTX {
+	return ConnFromContext(ctx, r.db)
+}
+
 func (r *TaskRepo) Create(ctx context.Context, task *domain.Task) error {
 	task.ID = uuid.New().String()
-	_, err := r.db.ExecContext(ctx,
+	_, err := r.conn(ctx).ExecContext(ctx,
 		`INSERT INTO tasks (id, title, description, status, assignee_id, team_id, created_by)
 		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		task.ID, task.Title, task.Description, task.Status, task.AssigneeID, task.TeamID, task.CreatedBy,
@@ -30,7 +35,7 @@ func (r *TaskRepo) Create(ctx context.Context, task *domain.Task) error {
 }
 
 func (r *TaskRepo) Update(ctx context.Context, task *domain.Task) error {
-	_, err := r.db.ExecContext(ctx,
+	_, err := r.conn(ctx).ExecContext(ctx,
 		`UPDATE tasks SET title = ?, description = ?, status = ?, assignee_id = ?
 		 WHERE id = ?`,
 		task.Title, task.Description, task.Status, task.AssigneeID, task.ID,
@@ -40,13 +45,16 @@ func (r *TaskRepo) Update(ctx context.Context, task *domain.Task) error {
 
 func (r *TaskRepo) GetByID(ctx context.Context, id string) (*domain.Task, error) {
 	t := &domain.Task{}
-	err := r.db.QueryRowContext(ctx,
+	err := r.conn(ctx).QueryRowContext(ctx,
 		`SELECT id, title, description, status, assignee_id, team_id, created_by, created_at, updated_at
 		 FROM tasks WHERE id = ?`, id,
 	).Scan(&t.ID, &t.Title, &t.Description, &t.Status, &t.AssigneeID,
 		&t.TeamID, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt)
 	if err != nil {
-		return nil, err
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, domain.ErrTaskNotFound
+		}
+		return nil, fmt.Errorf("получение задачи [id=%s]: %w", id, err)
 	}
 	return t, nil
 }
@@ -75,7 +83,7 @@ func (r *TaskRepo) List(ctx context.Context, filter ports.TaskFilter) ([]domain.
 
 	var total int64
 	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM tasks %s", where)
-	if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
+	if err := r.conn(ctx).QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
@@ -90,7 +98,7 @@ func (r *TaskRepo) List(ctx context.Context, filter ports.TaskFilter) ([]domain.
 	)
 	args = append(args, limit, filter.Offset)
 
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	rows, err := r.conn(ctx).QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -109,7 +117,7 @@ func (r *TaskRepo) List(ctx context.Context, filter ports.TaskFilter) ([]domain.
 }
 
 func (r *TaskRepo) GetHistory(ctx context.Context, taskID string) ([]domain.TaskHistory, error) {
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := r.conn(ctx).QueryContext(ctx,
 		`SELECT id, task_id, changed_by, field_name, old_value, new_value, changed_at
 		 FROM task_history WHERE task_id = ? ORDER BY changed_at DESC`, taskID,
 	)
@@ -132,7 +140,7 @@ func (r *TaskRepo) GetHistory(ctx context.Context, taskID string) ([]domain.Task
 
 func (r *TaskRepo) CreateHistoryEntry(ctx context.Context, entry *domain.TaskHistory) error {
 	entry.ID = uuid.New().String()
-	_, err := r.db.ExecContext(ctx,
+	_, err := r.conn(ctx).ExecContext(ctx,
 		`INSERT INTO task_history (id, task_id, changed_by, field_name, old_value, new_value)
 		 VALUES (?, ?, ?, ?, ?, ?)`,
 		entry.ID, entry.TaskID, entry.ChangedBy, entry.FieldName, entry.OldValue, entry.NewValue,
@@ -141,7 +149,7 @@ func (r *TaskRepo) CreateHistoryEntry(ctx context.Context, entry *domain.TaskHis
 }
 
 func (r *TaskRepo) TeamStats(ctx context.Context) ([]ports.TeamStat, error) {
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := r.conn(ctx).QueryContext(ctx, `
 		SELECT t.id, t.name,
 		       COUNT(DISTINCT tm.user_id) AS members_count,
 		       COUNT(DISTINCT CASE
@@ -169,7 +177,7 @@ func (r *TaskRepo) TeamStats(ctx context.Context) ([]ports.TeamStat, error) {
 }
 
 func (r *TaskRepo) TopContributors(ctx context.Context, teamID string) ([]ports.UserRank, error) {
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := r.conn(ctx).QueryContext(ctx, `
 		SELECT user_id, user_name, team_id, tasks_created, rn FROM (
 		    SELECT u.id AS user_id, u.name AS user_name, tm.team_id,
 		           COUNT(tk.id) AS tasks_created,
@@ -198,7 +206,7 @@ func (r *TaskRepo) TopContributors(ctx context.Context, teamID string) ([]ports.
 }
 
 func (r *TaskRepo) OrphanedAssignees(ctx context.Context) ([]domain.Task, error) {
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := r.conn(ctx).QueryContext(ctx, `
 		SELECT tk.id, tk.title, tk.description, tk.status, tk.assignee_id,
 		       tk.team_id, tk.created_by, tk.created_at, tk.updated_at
 		FROM tasks tk

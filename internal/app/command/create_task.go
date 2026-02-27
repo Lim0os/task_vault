@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"task_vault/internal/domain"
 	"task_vault/internal/ports"
@@ -36,7 +37,10 @@ func NewCreateTaskHandler(
 func (h *CreateTaskHandler) Handle(ctx context.Context, input CreateTaskInput) (*domain.Task, error) {
 	_, err := h.teamQuery.GetMember(ctx, input.TeamID, input.CreatedBy)
 	if err != nil {
-		return nil, domain.ErrNotTeamMember
+		if errors.Is(err, domain.ErrNotTeamMember) {
+			return nil, domain.ErrNotTeamMember
+		}
+		return nil, fmt.Errorf("проверка членства [team_id=%s, user_id=%s]: %w", input.TeamID, input.CreatedBy, err)
 	}
 
 	task := &domain.Task{
@@ -52,7 +56,7 @@ func (h *CreateTaskHandler) Handle(ctx context.Context, input CreateTaskInput) (
 		return nil, fmt.Errorf("создание задачи [team_id=%s, created_by=%s]: %w", input.TeamID, input.CreatedBy, err)
 	}
 
-	_ = h.cache.Delete(ctx, tasksCacheKey(input.TeamID))
+	_ = h.cache.DeleteByPrefix(ctx, tasksCacheKey(input.TeamID))
 
 	return task, nil
 }

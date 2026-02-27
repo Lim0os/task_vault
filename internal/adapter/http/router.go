@@ -14,17 +14,25 @@ import (
 	"task_vault/internal/app/auth"
 )
 
+type RouterConfig struct {
+	RateLimitRequests int64
+	RateLimitWindow   time.Duration
+}
+
 func NewRouter(
 	logger *slog.Logger,
 	jwtManager *auth.JWTManager,
 	redisClient *redis.Client,
+	routerCfg RouterConfig,
 	healthHandler *handler.HealthHandler,
 	authHandler *handler.AuthHandler,
 	teamHandler *handler.TeamHandler,
 	taskHandler *handler.TaskHandler,
+	analyticsHandler *handler.AnalyticsHandler,
 ) chi.Router {
 	r := chi.NewRouter()
 
+	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger(logger))
 	r.Use(middleware.Metrics)
 
@@ -39,7 +47,7 @@ func NewRouter(
 
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.JWTAuth(jwtManager))
-			r.Use(middleware.NewRateLimiter(redisClient, 100, time.Minute).Middleware)
+			r.Use(middleware.NewRateLimiter(redisClient, routerCfg.RateLimitRequests, routerCfg.RateLimitWindow, logger).Middleware)
 
 			r.Post("/teams", teamHandler.Create)
 			r.Get("/teams", teamHandler.List)
@@ -49,6 +57,10 @@ func NewRouter(
 			r.Get("/tasks", taskHandler.List)
 			r.Put("/tasks/{id}", taskHandler.Update)
 			r.Get("/tasks/{id}/history", taskHandler.History)
+
+			r.Get("/analytics/teams", analyticsHandler.TeamStats)
+			r.Get("/analytics/teams/{id}/top", analyticsHandler.TopContributors)
+			r.Get("/analytics/orphaned-assignees", analyticsHandler.OrphanedAssignees)
 		})
 	})
 

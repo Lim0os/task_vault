@@ -22,7 +22,8 @@ func TestCreateTeam_Success(t *testing.T) {
 	teamCmd.On("AddMember", mock.Anything, mock.AnythingOfType("*domain.TeamMember")).
 		Return(nil)
 
-	handler := NewCreateTeamHandler(teamCmd)
+	tx := new(mocks.Transactor)
+	handler := NewCreateTeamHandler(teamCmd, tx)
 	team, err := handler.Handle(context.Background(), CreateTeamInput{
 		Name:      "My Team",
 		CreatedBy: "user-uuid-1",

@@ -29,6 +29,7 @@ func Logger(logger *slog.Logger) func(http.Handler) http.Handler {
 				"path", r.URL.Path,
 				"status", rw.statusCode,
 				"duration", time.Since(start).String(),
+				"request_id", GetRequestID(r.Context()),
 			)
 		})
 	}

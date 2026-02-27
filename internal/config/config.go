@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log/slog"
 	"os"
 	"strconv"
 	"time"
@@ -9,10 +10,13 @@ import (
 )
 
 type Config struct {
-	Server ServerConfig `yaml:"server"`
-	MySQL  MySQLConfig  `yaml:"mysql"`
-	Redis  RedisConfig  `yaml:"redis"`
-	JWT    JWTConfig    `yaml:"jwt"`
+	Server         ServerConfig         `yaml:"server"`
+	MySQL          MySQLConfig          `yaml:"mysql"`
+	Redis          RedisConfig          `yaml:"redis"`
+	JWT            JWTConfig            `yaml:"jwt"`
+	RateLimit      RateLimitConfig      `yaml:"rate_limit"`
+	Cache          CacheConfig          `yaml:"cache"`
+	CircuitBreaker CircuitBreakerConfig `yaml:"circuit_breaker"`
 }
 
 type ServerConfig struct {
@@ -35,6 +39,22 @@ type RedisConfig struct {
 type JWTConfig struct {
 	Secret string        `yaml:"secret"`
 	TTL    time.Duration `yaml:"ttl"`
+}
+
+type RateLimitConfig struct {
+	RequestsPerWindow int64         `yaml:"requests_per_window"`
+	Window            time.Duration `yaml:"window"`
+}
+
+type CacheConfig struct {
+	TasksTTL time.Duration `yaml:"tasks_ttl"`
+}
+
+type CircuitBreakerConfig struct {
+	MaxRequests   uint32        `yaml:"max_requests"`
+	Interval      time.Duration `yaml:"interval"`
+	Timeout       time.Duration `yaml:"timeout"`
+	FailThreshold uint32        `yaml:"fail_threshold"`
 }
 
 // Load загружает конфигурацию с приоритетом: ENV > YAML > defaults
@@ -65,6 +85,19 @@ func defaults() Config {
 			Secret: "dev-secret-change-me",
 			TTL:    24 * time.Hour,
 		},
+		RateLimit: RateLimitConfig{
+			RequestsPerWindow: 100,
+			Window:            time.Minute,
+		},
+		Cache: CacheConfig{
+			TasksTTL: 5 * time.Minute,
+		},
+		CircuitBreaker: CircuitBreakerConfig{
+			MaxRequests:   3,
+			Interval:      30 * time.Second,
+			Timeout:       10 * time.Second,
+			FailThreshold: 5,
+		},
 	}
 }
 
@@ -79,48 +112,65 @@ func loadFromYAML(cfg *Config) {
 		return
 	}
 
-	_ = yaml.Unmarshal(data, cfg)
+	if err := yaml.Unmarshal(data, cfg); err != nil {
+		slog.Warn("ошибка парсинга конфигурации YAML", "path", path, "error", err)
+	}
 }
 
 func applyEnv(cfg *Config) {
-	if v := os.Getenv("SERVER_PORT"); v != "" {
-		cfg.Server.Port = v
+	envString("SERVER_PORT", &cfg.Server.Port)
+	envString("MYSQL_DSN", &cfg.MySQL.DSN)
+	envInt("MYSQL_MAX_OPEN_CONNS", &cfg.MySQL.MaxOpenConns)
+	envInt("MYSQL_MAX_IDLE_CONNS", &cfg.MySQL.MaxIdleConns)
+	envDuration("MYSQL_CONN_MAX_LIFETIME", &cfg.MySQL.ConnMaxLifetime)
+	envString("REDIS_ADDR", &cfg.Redis.Addr)
+	envString("REDIS_PASSWORD", &cfg.Redis.Password)
+	envInt("REDIS_DB", &cfg.Redis.DB)
+	envString("JWT_SECRET", &cfg.JWT.Secret)
+	envDuration("JWT_TTL", &cfg.JWT.TTL)
+	envInt64("RATE_LIMIT_REQUESTS", &cfg.RateLimit.RequestsPerWindow)
+	envDuration("RATE_LIMIT_WINDOW", &cfg.RateLimit.Window)
+	envDuration("CACHE_TASKS_TTL", &cfg.Cache.TasksTTL)
+	envUint32("CB_MAX_REQUESTS", &cfg.CircuitBreaker.MaxRequests)
+	envDuration("CB_INTERVAL", &cfg.CircuitBreaker.Interval)
+	envDuration("CB_TIMEOUT", &cfg.CircuitBreaker.Timeout)
+	envUint32("CB_FAIL_THRESHOLD", &cfg.CircuitBreaker.FailThreshold)
+}
+
+func envString(key string, dest *string) {
+	if v := os.Getenv(key); v != "" {
+		*dest = v
 	}
-	if v := os.Getenv("MYSQL_DSN"); v != "" {
-		cfg.MySQL.DSN = v
-	}
-	if v := os.Getenv("MYSQL_MAX_OPEN_CONNS"); v != "" {
+}
+
+func envInt(key string, dest *int) {
+	if v := os.Getenv(key); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
-			cfg.MySQL.MaxOpenConns = n
+			*dest = n
 		}
 	}
-	if v := os.Getenv("MYSQL_MAX_IDLE_CONNS"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			cfg.MySQL.MaxIdleConns = n
+}
+
+func envInt64(key string, dest *int64) {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			*dest = n
 		}
 	}
-	if v := os.Getenv("MYSQL_CONN_MAX_LIFETIME"); v != "" {
+}
+
+func envUint32(key string, dest *uint32) {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.ParseUint(v, 10, 32); err == nil {
+			*dest = uint32(n)
+		}
+	}
+}
+
+func envDuration(key string, dest *time.Duration) {
+	if v := os.Getenv(key); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
-			cfg.MySQL.ConnMaxLifetime = d
-		}
-	}
-	if v := os.Getenv("REDIS_ADDR"); v != "" {
-		cfg.Redis.Addr = v
-	}
-	if v := os.Getenv("REDIS_PASSWORD"); v != "" {
-		cfg.Redis.Password = v
-	}
-	if v := os.Getenv("REDIS_DB"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			cfg.Redis.DB = n
-		}
-	}
-	if v := os.Getenv("JWT_SECRET"); v != "" {
-		cfg.JWT.Secret = v
-	}
-	if v := os.Getenv("JWT_TTL"); v != "" {
-		if d, err := time.ParseDuration(v); err == nil {
-			cfg.JWT.TTL = d
+			*dest = d
 		}
 	}
 }

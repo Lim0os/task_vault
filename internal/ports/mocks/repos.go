@@ -143,6 +143,12 @@ func (m *AnalyticsQueryRepo) OrphanedAssignees(ctx context.Context) ([]domain.Ta
 	return args.Get(0).([]domain.Task), args.Error(1)
 }
 
+type Transactor struct{}
+
+func (m *Transactor) WithinTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
+	return fn(ctx)
+}
+
 type Cache struct{ mock.Mock }
 
 func (m *Cache) Get(ctx context.Context, key string, dest any) error {
@@ -157,5 +163,10 @@ func (m *Cache) Set(ctx context.Context, key string, value any, ttl time.Duratio
 
 func (m *Cache) Delete(ctx context.Context, key string) error {
 	args := m.Called(ctx, key)
+	return args.Error(0)
+}
+
+func (m *Cache) DeleteByPrefix(ctx context.Context, prefix string) error {
+	args := m.Called(ctx, prefix)
 	return args.Error(0)
 }

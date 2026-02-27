@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/sony/gobreaker"
+	"task_vault/internal/config"
 )
 
 type Notifier struct {
@@ -14,14 +14,14 @@ type Notifier struct {
 	logger *slog.Logger
 }
 
-func NewNotifier(logger *slog.Logger) *Notifier {
+func NewNotifier(logger *slog.Logger, cfg config.CircuitBreakerConfig) *Notifier {
 	cb := gobreaker.NewCircuitBreaker(gobreaker.Settings{
 		Name:        "email-notifier",
-		MaxRequests: 3,
-		Interval:    30 * time.Second,
-		Timeout:     10 * time.Second,
+		MaxRequests: cfg.MaxRequests,
+		Interval:    cfg.Interval,
+		Timeout:     cfg.Timeout,
 		ReadyToTrip: func(counts gobreaker.Counts) bool {
-			return counts.ConsecutiveFailures >= 5
+			return counts.ConsecutiveFailures >= cfg.FailThreshold
 		},
 		OnStateChange: func(name string, from gobreaker.State, to gobreaker.State) {
 			logger.Warn("circuit breaker: смена состояния",

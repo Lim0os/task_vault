@@ -8,24 +8,22 @@ import (
 	"time"
 )
 
-const tasksCacheTTL = 5 * time.Minute
-
 type GetTasksOutput struct {
 	Tasks []domain.Task
 	Total int64
 }
 
 type GetTasksHandler struct {
-	taskQuery ports.TaskQueryRepo
-	cache     ports.Cache
+	taskQuery     ports.TaskQueryRepo
+	cache         ports.Cache
+	tasksCacheTTL time.Duration
 }
 
-func NewGetTasksHandler(taskQuery ports.TaskQueryRepo, cache ports.Cache) *GetTasksHandler {
-	return &GetTasksHandler{taskQuery: taskQuery, cache: cache}
+func NewGetTasksHandler(taskQuery ports.TaskQueryRepo, cache ports.Cache, tasksCacheTTL time.Duration) *GetTasksHandler {
+	return &GetTasksHandler{taskQuery: taskQuery, cache: cache, tasksCacheTTL: tasksCacheTTL}
 }
 
 func (h *GetTasksHandler) Handle(ctx context.Context, filter ports.TaskFilter) (*GetTasksOutput, error) {
-	// Кешируем только запросы по team_id без дополнительных фильтров
 	cacheKey := ""
 	canCache := filter.TeamID != nil && filter.Status == nil && filter.AssigneeID == nil
 	if canCache {
@@ -44,7 +42,7 @@ func (h *GetTasksHandler) Handle(ctx context.Context, filter ports.TaskFilter) (
 	output := &GetTasksOutput{Tasks: tasks, Total: total}
 
 	if canCache {
-		_ = h.cache.Set(ctx, cacheKey, output, tasksCacheTTL)
+		_ = h.cache.Set(ctx, cacheKey, output, h.tasksCacheTTL)
 	}
 
 	return output, nil
